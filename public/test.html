@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Chatbot IA</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; }
+    #messages { border: 1px solid #ccc; border-radius: 8px; height: 300px; overflow-y: auto; padding: 15px; margin-bottom: 10px; background: #f9f9f9; }
+    .bot { color: #1d4ed8; margin: 8px 0; }
+    .user { color: #16a34a; margin: 8px 0; text-align: right; }
+    .error { color: red; margin: 8px 0; }
+    #form { display: flex; gap: 8px; }
+    #input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
+    button { padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    button:disabled { background: #9ca3af; cursor: not-allowed; }
+    h1 { color: #1f2937; }
+    .status { font-size: 0.85rem; color: #6b7280; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🤖 Test Chatbot Claude</h1>
+  <p class="status">Serveur : <span id="status">Vérification...</span></p>
+  <div id="messages"></div>
+  <div id="form">
+    <input id="input" type="text" placeholder="Tapez votre message..." autofocus />
+    <button id="btn" onclick="send()">Envoyer</button>
+  </div>
+
+  <script>
+    const history = [];
+
+    // Vérifie que le serveur répond
+    fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-3-5-sonnet-latest', max_tokens: 10, system: 'Réponds OK.', messages: [{ role: 'user', content: 'test' }] })
+    }).then(r => {
+      document.getElementById('status').textContent = r.ok ? '✅ Connecté' : '⚠️ Erreur ' + r.status;
+      document.getElementById('status').style.color = r.ok ? 'green' : 'orange';
+    }).catch(() => {
+      document.getElementById('status').textContent = '❌ Serveur inaccessible';
+      document.getElementById('status').style.color = 'red';
+    });
+
+    function addMsg(role, text) {
+      const div = document.createElement('div');
+      div.className = role;
+      div.textContent = (role === 'user' ? 'Vous : ' : role === 'bot' ? '🤖 Bot : ' : '⚠️ ') + text;
+      document.getElementById('messages').appendChild(div);
+      document.getElementById('messages').scrollTop = 9999;
+    }
+
+    document.getElementById('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') send();
+    });
+
+    async function send() {
+      const input = document.getElementById('input');
+      const btn = document.getElementById('btn');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      btn.disabled = true;
+      addMsg('user', text);
+      history.push({ role: 'user', content: text });
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-3-5-sonnet-latest',
+            max_tokens: 500,
+            system: 'Tu es un assistant utile. Réponds en français.',
+            messages: history
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur ' + res.status);
+
+        const reply = data.content?.[0]?.text || data.reply || JSON.stringify(data);
+        history.push({ role: 'assistant', content: reply });
+        addMsg('bot', reply);
+      } catch (err) {
+        addMsg('error', err.message);
+      }
+
+      btn.disabled = false;
+      input.focus();
+    }
+  </script>
+</body>
+</html>
