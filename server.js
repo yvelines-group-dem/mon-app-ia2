@@ -18,9 +18,7 @@ app.post('/api/chat', async (req, res) => {
     if (!ANTHROPIC_API_KEY) {
       return res.status(500).json({ error: 'Clé API manquante' });
     }
-
     const { model, max_tokens, system, messages } = req.body;
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -30,16 +28,13 @@ app.post('/api/chat', async (req, res) => {
       },
       body: JSON.stringify({ model, max_tokens, system, messages })
     });
-
     const data = await response.json();
     res.json(data);
-
   } catch (err) {
-    console.error('Erreur serveur:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur le port ${PORT}`);
+  console.log('Serveur sur port ' + PORT);
 });
