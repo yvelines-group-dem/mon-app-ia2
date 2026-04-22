@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
 
 const app = express();
 app.use(cors());
@@ -10,7 +9,7 @@ const PORT = process.env.PORT || 10000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'Serveur Yvelines Group actif !' });
+  res.json({ status: 'ok' });
 });
 
 app.post('/api/chat', async (req, res) => {
