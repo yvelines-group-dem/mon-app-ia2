@@ -9,7 +9,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 10000;
-const ANTHROPIC_API_KEY= process.env.ANTHROPIC_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok' });
@@ -17,7 +17,9 @@ app.get('/', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   try {
-    if (!ANTHROPIC_API_KEY) {
+    const anthropicApiKey = normalizeApiKey(process.env.ANTHROPIC_API_KEY);
+
+    if (!anthropicApiKey) {
       console.error('ERREUR: Clé API manquante');
       return res.status(500).json({ error: 'Clé API manquante' });
     }
@@ -27,7 +29,7 @@ app.post('/api/chat', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
+        'x-api-key': anthropicApiKey,
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({ model, max_tokens, system, messages })
