@@ -17,9 +17,7 @@ app.get('/', (req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   try {
-    (process.env.ANTHROPIC_API_KEY || '').trim()
-
-    if (!anthropicApiKey) {
+const anthropicApiKey = (process.env.ANTHROPIC_API_KEY || '').trim();
       console.error('ERREUR: Clé API manquante');
       return res.status(500).json({ error: 'Clé API manquante' });
     }
