@@ -5,10 +5,56 @@ const path = require('path');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false })); // Nécessaire pour les webhooks Twilio
 app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 10000;
 
 app.get('/', (req, res) => { res.json({ status: 'ok' }); });
+
+// Fonction helper pour envoyer un SMS via Twilio API
+async function sendSMS(to, body) {
+  const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const authToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
+  const fromNumber = (process.env.TWILIO_FROM || '').trim();
+  if (!accountSid || !authToken || !fromNumber) throw new Error('Variables Twilio manquantes');
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const params = new URLSearchParams({ From: fromNumber, To: to, Body: body });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params.toString()
+  });
+  return response.json();
+}
+
+// Webhook Twilio — déclenché à chaque appel entrant sur le numéro Twilio
+app.post('/voice', async (req, res) => {
+  const callerNumber = req.body.From || 'Numéro inconnu';
+  const ownerNumber = (process.env.OWNER_PHONE || '').trim();
+
+  // Répondre immédiatement avec TwiML (message vocal)
+  res.set('Content-Type', 'text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say language="fr-FR" voice="alice">
+    Bonjour, vous avez contacté Yvelines Group Déménagement.
+    Nous ne sommes pas disponibles pour le moment.
+    Un conseiller vous rappellera très prochainement.
+    Vous pouvez également nous joindre par email à contact arobase yvelines tiret group tiret dem point com.
+    Merci de votre confiance. Au revoir.
+  </Say>
+  <Hangup/>
+</Response>`);
+
+  // Envoyer un SMS de notification au propriétaire (en arrière-plan)
+  if (ownerNumber) {
+    const message = `📞 Appel manqué Yvelines Group\nNuméro : ${callerNumber}\nRappeler dès que possible !`;
+    sendSMS(ownerNumber, message).catch(err => console.error('SMS erreur:', err));
+  }
+});
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -31,36 +77,16 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Endpoint SMS manuel (depuis le site ou autre)
 app.post('/api/sms', async (req, res) => {
   try {
-    const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
-    const authToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
-    const fromNumber = (process.env.TWILIO_FROM || '').trim();
-
-    if (!accountSid || !authToken || !fromNumber) {
-      return res.status(500).json({ error: 'Variables Twilio manquantes' });
-    }
-
     const { to, body } = req.body;
     if (!to || !body) {
       return res.status(400).json({ error: 'Champs "to" et "body" requis' });
     }
-
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const params = new URLSearchParams({ From: fromNumber, To: to, Body: body });
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params.toString()
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      return res.status(response.status).json({ error: data.message || 'Erreur Twilio' });
+    const data = await sendSMS(to, body);
+    if (data.error_code) {
+      return res.status(400).json({ error: data.message || 'Erreur Twilio' });
     }
     res.json({ success: true, sid: data.sid });
   } catch (err) {
