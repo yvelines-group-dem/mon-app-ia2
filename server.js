@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fetch = require('node-fetch');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -18,6 +19,19 @@ function getTwilioConfig() {
 }
 
 app.get('/', (req, res) => { res.json({ status: 'ok' }); });
+
+// Endpoint de test — appeler https://repondeur-yvelines.onrender.com/test-sms pour vérifier Twilio
+app.get('/test-sms', async (req, res) => {
+  const { accountSid, authToken, fromNumber } = getTwilioConfig();
+  const ownerNumber = (process.env.OWNER_PHONE || '').trim();
+  res.json({
+    accountSid_present: !!accountSid,
+    accountSid_preview: accountSid ? accountSid.slice(0, 6) + '...' : 'MANQUANT',
+    authToken_present: !!authToken,
+    fromNumber: fromNumber || 'MANQUANT',
+    ownerPhone: ownerNumber || 'MANQUANT'
+  });
+});
 
 // Fonction helper pour envoyer un SMS via Twilio API
 async function sendSMS(to, body) {
