@@ -9,13 +9,19 @@ app.use(express.urlencoded({ extended: false })); // Nécessaire pour les webhoo
 app.use(express.static(path.join(__dirname, 'public')));
 const PORT = process.env.PORT || 10000;
 
+function getTwilioConfig() {
+  const accountSid = (process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_SID || '').trim();
+  const authToken = (process.env.TWILIO_AUTH_TOKEN || process.env.TWILIO_TOKEN || '').trim();
+  const fromNumber = (process.env.TWILIO_FROM || process.env.TWILIO_NUMBER || '').trim();
+
+  return { accountSid, authToken, fromNumber };
+}
+
 app.get('/', (req, res) => { res.json({ status: 'ok' }); });
 
 // Fonction helper pour envoyer un SMS via Twilio API
 async function sendSMS(to, body) {
-  const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
-  const authToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
-  const fromNumber = (process.env.TWILIO_FROM || '').trim();
+  const { accountSid, authToken, fromNumber } = getTwilioConfig();
   if (!accountSid || !authToken || !fromNumber) throw new Error('Variables Twilio manquantes');
   const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   const params = new URLSearchParams({ From: fromNumber, To: to, Body: body });
@@ -27,7 +33,14 @@ async function sendSMS(to, body) {
     },
     body: params.toString()
   });
-  return response.json();
+
+  const data = await response.json();
+  if (!response.ok) {
+    const sidPreview = accountSid ? `${accountSid.slice(0, 8)}...` : 'missing';
+    throw new Error(`Twilio auth/message error (${sidPreview}): ${data.message || 'Erreur Twilio'}`);
+  }
+
+  return data;
 }
 
 // Webhook Twilio — déclenché à chaque appel entrant sur le numéro Twilio
